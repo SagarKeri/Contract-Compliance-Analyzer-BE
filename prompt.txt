@@ -1,0 +1,603 @@
+
+    You are an expert contract reviewer.
+
+    Task 1: Provide a brief description of the uploaded contract based on the following excerpt: 
+    Definitive Model Gas Development and Production Service Contract (“GDPSC”) Sept 10, 2010 
+ 
+67 
+ 
+ADDENDUM ONE – HEADS OF JOINT OPERATING AGREEMENT 
+This Addendum One is attached to and made part of the Gas Development and Production 
+Service Contract for the _______ Contract Area.  Terms defined in the Development and 
+Production Service Contract shall have the same meanings for the purpose of this Heads of 
+Agreement.  The parties to the Joint Operating Agreement are the entities constituting 
+Contractor. 
+CLAUSE 1. 
+SCOPE 
+This Heads of Joint Operating Agreement is to provide for the basic principles to be included in 
+a Joint Operating Agreement (“JOA”) to be executed among the entities constituting Contractor 
+(hereinafter referred to individually as “Participant” or collectively as “Participants”). 
+CLAUSE 2. 
+PARTICIPATING INTEREST 
+Subject to Article 27 of the Contract, each Participant shall have the undivided percentage
+
+(excluding production for testing purposes) and delivery of the same at the relevant 
+Transfer Point(s) under a program of regular production and transfer. 
+1.16 
+“Company” means any entity that is a signatory party to this Contract and that forms 
+part of the Contractor, excluding the State Partner, and at any time thereafter shall 
+include their legal successors and permitted assignees. 
+1.17 
+“Companies” means, collectively, each Company that comprises the Contractor, 
+excluding the State Partner, and at any time thereafter shall include their legal 
+successors and permitted assignees. 
+1.18 
+“Contract” means this agreement between the Parties, including the Annexes and 
+Addenda attached hereto, as amended or supplemented from time to time in accordance 
+with this Contract. 
+1.19 
+“Contract Area” means the exploration, appraisal, development and production area 
+covered by this Contract, as described in Annex A and outlined in Annex B. 
+1.20
+
+CLAUSE 2. 
+PARTICIPATING INTEREST 
+Subject to Article 27 of the Contract, each Participant shall have the undivided percentage 
+interest determined under the Contract and/or as agreed by the Participants (“Participating 
+Interest”), provided that each Participant's Participating Interest shall not be less than seven 
+point five percent (7.5%).  Each Participant shall participate in proportion to its respective 
+Participating Interest in all costs, expenses and liabilities incurred pursuant to the Contract or 
+JOA and shall own, in the same proportion, the Contractor's rights under the Contract and the 
+Participants' rights under the JOA. 
+CLAUSE 3. 
+OPERATOR 
+3.1 
+The Operator appointed in accordance with the Contract, shall have exclusive 
+management and control of Petroleum Operations prior to the formation of the Joint 
+Operating Company. 
+3.2 
+Operator may, at any time resign as such by giving the Participants notice in writing.
+    - Summarize in 2–3 sentences what the contract is about, covering key parties, purpose, and type of obligations.
+
+    Task 2: Analyze the contract and check for the presence and adequacy of the following clauses using their respective relevant excerpts:
+
+    Clause Name: Confidentiality
+Required Clause Text: The Contractor shall treat all information obtained in the course of performance of this contract as strictly confidential and shall not disclose such information to any third party without prior written consent of the Company
+Relevant Contract Excerpts: and/or the Contract in accordance with Article 29.  To the extent that the Parties determine that 
+it would be appropriate to prepare a shareholders’ agreement in respect of JOC, such 
+shareholders agreement shall be governed by, and construed in accordance with, the Law.  Any 
+dispute arising from or in connection with such shareholders agreement or the charter of JOC 
+shall be settled in accordance with Article 37 of the Contract. 
+CLAUSE 18. CONFIDENTIALITY 
+Confidentiality provisions of Article 33 of the Contract shall apply for this Heads of Agreement, 
+subsequent Charter and operations of JOC. 
+CLAUSE 19. EFFECTIVE DATE AND TERM 
+This Heads of Agreement shall come into force on the Effective Date and shall continue in effect
+
+with this Contract. 
+1.19 
+“Contract Area” means the exploration, appraisal, development and production area 
+covered by this Contract, as described in Annex A and outlined in Annex B. 
+1.20 
+“Contractor's Operator” means the Company designated as Operator as from the 
+Effective Date pursuant to Article 9.2. 
+1.21 
+“Contractor” means Companies and State Partner, and at any time thereafter shall 
+include their legal successors and permitted assignees. 
+1.22 
+“Crude Oil” means all hydrocarbons regardless of gravity which may be produced and 
+saved from the Contract Area in the liquid state at absolute pressure of fourteen decimal 
+six nine six (14.696) pounds per square inch and sixty (60) degrees Fahrenheit, 
+including asphalt and tar, but excluding NGL that is not blended with Crude Oil. 
+1.23 
+“Data” means as defined in Article 14.2. 
+1.24 
+“Date of Transfer of Operatorship” means the date on which the Joint Operating
+
+CLAUSE 2. 
+PARTICIPATING INTEREST 
+Subject to Article 27 of the Contract, each Participant shall have the undivided percentage 
+interest determined under the Contract and/or as agreed by the Participants (“Participating 
+Interest”), provided that each Participant's Participating Interest shall not be less than seven 
+point five percent (7.5%).  Each Participant shall participate in proportion to its respective 
+Participating Interest in all costs, expenses and liabilities incurred pursuant to the Contract or 
+JOA and shall own, in the same proportion, the Contractor's rights under the Contract and the 
+Participants' rights under the JOA. 
+CLAUSE 3. 
+OPERATOR 
+3.1 
+The Operator appointed in accordance with the Contract, shall have exclusive 
+management and control of Petroleum Operations prior to the formation of the Joint 
+Operating Company. 
+3.2 
+Operator may, at any time resign as such by giving the Participants notice in writing.
+
+Clause Name: Force Majeure
+Required Clause Text: Neither party shall be liable for any failure or delay in performing its obligations if such failure is due to events beyond its reasonable control, including but not limited to acts of God, natural disasters, war, or government regulations.
+Relevant Contract Excerpts: Production Rate, which shall be achieved by Contractor within three (3) Years from the 
+approval date of the Preliminary Development Plan pursuant to Article 2.2 and Article 6, 
+subject to Article 11.3. 
+1.41 
+ “Force Majeure” means as defined in Article 31. 
+1.42 
+“Gas” or “Natural Gas” means a mixture of hydrocarbons and varying quantities of non-
+hydrocarbons that exist either in the gaseous phase or in solution with Crude Oil in 
+natural underground reservoirs and when produced remain in gaseous phase at 
+atmospheric conditions of temperature and pressure, and is classified as either 
+Associated Gas or Non-Associated Gas. 
+1.43 
+“Government” means the Government of the Republic of Iraq. 
+1.44 
+“Gross Negligence” or “Willful Misconduct” means any unjustifiable act or omission by 
+Senior Supervisory Personnel which constitutes an intentional, deliberate, reckless or 
+conscious disregard of the Best International Petroleum Industry Practices or terms of
+
+Ministry, shall be bound by the Contract. 
+This Guarantee is issued for the benefit of ______ and cannot be assigned or transferred by it 
+to any other party without the prior written consent of ROC. 
+For purposes of this Guarantee, the capitalized terms used herein but which are undefined shall 
+have the meaning ascribed to them in the Contract.  
+This Guarantee shall be governed by and construed in accordance with the laws of Republic of 
+Iraq.  Any dispute arising from this Guarantee shall be settled in accordance with the terms of 
+Article 37 of the Contract. 
+Address of the Ministry of Oil for purposes of enforcement of this Guarantee: 
+Petroleum Contract and Licensing Directorate, Ministry of Oil, Baghdad, Republic of Iraq, 
+attention Director General 
+Signed for and on behalf of Ministry of Oil  
+Name: __________________________________ 
+Title:  __________________________________ 
+ 
+(End of Annex F)
+
+CLAUSE 7. 
+DEFAULTS 
+7.1 
+Any Company that fails to pay when due its Participating Interest share of costs and 
+expenses shall be in default (hereinafter referred to as (“Defaulting Company”).  The 
+Operator shall as soon as practicable notify all Participants of such default and the 
+Operator shall keep the Participants informed thereafter of material events in relation 
+thereto.  The amount not paid by the Defaulting Company shall bear interest from the 
+date due until paid in full at the rate specified in Clause 7.2 below.  After any default has 
+continued for thirty (30) days, the Defaulting Company shall not be entitled to attend 
+Operating Committee meetings or to vote on any matter coming before the Operating 
+Committee during the period such default continues.  Non-Defaulting Companies 
+(excluding State Partner) shall pay the defaulted amount on behalf of the Defaulting 
+Company, in proportion to their Participating Interests or in any other proportion they 
+may agree upon.
+
+Clause Name: Termination
+Required Clause Text: The Company reserves the right to terminate the contract at any time by giving thirty (30) days written notice to the Contractor without assigning any reason.
+Relevant Contract Excerpts: Definitive Model Gas Development and Production Service Contract (“GDPSC”) Sept 10, 2010 
+ 
+77 
+ 
+CLAUSE 12. DURATION OF JOC 
+12.1 
+The duration of JOC shall extend up to the end of the Term, including any extensions 
+thereof. 
+12.2 
+Neither Contractor nor ROC shall assign, sell or otherwise transfer its interest in the JOC 
+except by mutual agreement; provided, however, that when a Company assigns its 
+interest under the Contract and Joint Operating Agreement to any party, its interest in 
+the JOC shall be assigned proportionately. 
+CLAUSE 13. DISSOLUTION OF JOC 
+The JOC shall be dissolved when the Contract expires or is terminated for any reason as 
+provided for therein. 
+CLAUSE 14. CHARTER OF JOC 
+By the Date of Transfer of Operatorship, the Parties shall enter into the charter of the JOC 
+which shall embody the principles set out in this JOC Heads of Agreement.  Pending the issue 
+of the said Charter, the provisions of this JOC Heads of Agreement setting forth the principal
+
+management and control of Petroleum Operations prior to the formation of the Joint 
+Operating Company. 
+3.2 
+Operator may, at any time resign as such by giving the Participants notice in writing.  
+Operator shall cease to be Operator if: (a) it or its guarantor dissolves, liquidates or 
+terminates its legal existence; (b) it or its guarantor becomes insolvent, bankrupt or is 
+placed in receivership; (c) its Participating Interest is reduced to less than twenty two 
+point five percent (22.5%); or (d) it takes no action within thirty (30) days after notification 
+to it by a Participant to remedy a material breach of this JOA.  Pursuant to Article 9.3 of 
+the Contract, replacement of the Operator shall be subject to ROC's prior approval. 
+CLAUSE 4. 
+OPERATING COMMITTEE 
+4.1 
+An Operating Committee composed of representatives of the Participants shall be 
+established and shall act for the duration of this JOA to make decisions and establish
+
+Sales Agreement. 
+CLAUSE 12. PETROLEUM TRANSFER AGREEMENT 
+Within six (6) months from the Effective Date, the Operator shall enter into the Petroleum 
+Transfer Agreement with Transporter which shall embody the principles in this Addendum Two 
+and it may include such other provisions as customarily used by the international petroleum 
+industry and shall continue in effect for as long as the Contract is in effect. 
+(End of Addendum Two)
+
+Clause Name: Payment Terms
+Required Clause Text: All payments to the Contractor shall be made within thirty (30) days of receipt of a valid invoice, subject to satisfactory completion of services as determined by the Company.
+Relevant Contract Excerpts: Sales Agreement. 
+CLAUSE 12. PETROLEUM TRANSFER AGREEMENT 
+Within six (6) months from the Effective Date, the Operator shall enter into the Petroleum 
+Transfer Agreement with Transporter which shall embody the principles in this Addendum Two 
+and it may include such other provisions as customarily used by the international petroleum 
+industry and shall continue in effect for as long as the Contract is in effect. 
+(End of Addendum Two)
+
+CLAUSE 2. 
+QUANTITY 
+2.1 
+Forward Quantity Statement 
+No later than the first day of the first Month of the Quarter immediately preceding any 
+Lifting Quarter, Contractor shall invoice ROC the outstanding Petroleum Costs,  
+Supplementary Costs and Remuneration due and payable to Contractor under the 
+Contract as it estimates these will stand on the first day of the said Lifting Quarter.  ROC 
+shall review the invoice and will either confirm its accuracy, or advise Contractor of any 
+errors.  The invoice shall be agreed by Contractor and ROC by the 15th of said first 
+Month. 
+Accordingly, no later than the first day of the second Month of the Quarter immediately 
+preceding any Lifting Quarter, the Buyer shall furnish to the Seller a statement of the 
+volume of Export Oil to be lifted from each standard export quality in each Month of the 
+said Lifting Quarter (“Forward Quantity Statement”).  The Forward Quantity Statement
+
+Definitive Model Gas Development and Production Service Contract (“GDPSC”) Sept 10, 2010 
+ 
+73 
+ 
+accordance with the Law.  Any dispute, controversy or claim arising out of or in relation to or in 
+connection with the Petroleum Transfer Agreement or the operations carried out thereunder, 
+including without limitation any dispute as to the validity, interpretation, enforceability or breach 
+of the Petroleum Transfer Agreement, shall be settled by arbitration in accordance with the 
+procedures set forth in Article 37 of the Contract. 
+CLAUSE 11. RELATED PROCEDURES 
+Procedures existing on the Effective Date for lifting, storage, tanker nomination and other 
+related activities may later be adjusted to support the efficient implementation of the Export Oil 
+Sales Agreement. 
+CLAUSE 12. PETROLEUM TRANSFER AGREEMENT 
+Within six (6) months from the Effective Date, the Operator shall enter into the Petroleum
+
+Clause Name: Compliance with Laws
+Required Clause Text: The Contractor shall comply with all applicable laws, regulations, and standards in the performance of its obligations under this contract.
+Relevant Contract Excerpts: expenditures for such Petroleum Operations under the terms of the Contract and the 
+Accounting Procedures. 
+4.3 
+In conducting Petroleum Operations, the JOC and its Sub-Contractors enjoy the same 
+privileges and exemptions as Contractor or Operator to the extent these apply to the 
+conduct of Petroleum Operations by Operator, and shall comply with the Law.
+
+(excluding production for testing purposes) and delivery of the same at the relevant 
+Transfer Point(s) under a program of regular production and transfer. 
+1.16 
+“Company” means any entity that is a signatory party to this Contract and that forms 
+part of the Contractor, excluding the State Partner, and at any time thereafter shall 
+include their legal successors and permitted assignees. 
+1.17 
+“Companies” means, collectively, each Company that comprises the Contractor, 
+excluding the State Partner, and at any time thereafter shall include their legal 
+successors and permitted assignees. 
+1.18 
+“Contract” means this agreement between the Parties, including the Annexes and 
+Addenda attached hereto, as amended or supplemented from time to time in accordance 
+with this Contract. 
+1.19 
+“Contract Area” means the exploration, appraisal, development and production area 
+covered by this Contract, as described in Annex A and outlined in Annex B. 
+1.20
+
+Definitive Model Gas Development and Production Service Contract (“GDPSC”) Sept 10, 2010 
+ 
+2 
+ 
+ARTICLE 1 – DEFINITIONS 
+Except as specifically provided herein, any reference to an Article, Annex, or Addendum shall 
+be construed as a reference to Article, Annex, or Addendum to this Contract.  In this Contract, 
+including its Annexes and Addenda, words in the singular include the plural and vice versa and 
+except where the context otherwise requires, the following terms shall have the meanings set 
+out as follows: 
+1.1 
+“Accounting Procedures” means the accounting procedures and requirements set out 
+in Annex C. 
+1.2 
+“Affiliate” in relation to any Contractor’s entity, means: 
+(a) 
+a company which controls such entity, or 
+(b) 
+a company which is controlled by such entity, or 
+(c) 
+a company which is controlled by a company which controls such entity. 
+ 
+For the purpose of this definition, “control” means the power to dictate and conduct the
+
+Clause Name: Insurance
+Required Clause Text: The Contractor shall maintain at its own expense adequate insurance coverage including but not limited to liability, worker’s compensation, and property insurance.
+Relevant Contract Excerpts: are performed in accordance with Best International Petroleum Industry Practices.  In 
+particular, the establishment of the JOC shall in no way relieve Contractor of its 
+obligations to achieve the production targets under the Contract. 
+CLAUSE 5. 
+FINANCING 
+The JOC shall have neither profit nor loss.  Costs, expenses and expenditures, incurred and 
+paid by JOC to carry out Petroleum Operations shall be financed by Contractor and recovered 
+as Petroleum Costs or Supplementary Costs according with approved Work Programs and 
+Budgets in accordance with the provisions of the Contract. 
+CLAUSE 6. 
+FUNCTION OF JOC 
+6.1 
+The JOC shall not own any right, title or interest under the Contract or in the Petroleum 
+produced from the Contract Area, and shall not be required as a principal for any 
+financing.  JOC shall function as Operator and shall assume all relevant responsibilities 
+of Operator under the Contract. 
+6.2
+
+Definitive Model Gas Development and Production Service Contract (“GDPSC”) Sept 10, 2010 
+ 
+2 
+ 
+ARTICLE 1 – DEFINITIONS 
+Except as specifically provided herein, any reference to an Article, Annex, or Addendum shall 
+be construed as a reference to Article, Annex, or Addendum to this Contract.  In this Contract, 
+including its Annexes and Addenda, words in the singular include the plural and vice versa and 
+except where the context otherwise requires, the following terms shall have the meanings set 
+out as follows: 
+1.1 
+“Accounting Procedures” means the accounting procedures and requirements set out 
+in Annex C. 
+1.2 
+“Affiliate” in relation to any Contractor’s entity, means: 
+(a) 
+a company which controls such entity, or 
+(b) 
+a company which is controlled by such entity, or 
+(c) 
+a company which is controlled by a company which controls such entity. 
+ 
+For the purpose of this definition, “control” means the power to dictate and conduct the
+
+expenditures for such Petroleum Operations under the terms of the Contract and the 
+Accounting Procedures. 
+4.3 
+In conducting Petroleum Operations, the JOC and its Sub-Contractors enjoy the same 
+privileges and exemptions as Contractor or Operator to the extent these apply to the 
+conduct of Petroleum Operations by Operator, and shall comply with the Law.
+
+Clause Name: Indemnity
+Required Clause Text: The Contractor agrees to indemnify and hold harmless the Company from any and all claims, damages, or expenses arising from the Contractor’s performance under this contract.
+Relevant Contract Excerpts: CLAUSE 2. 
+PARTICIPATING INTEREST 
+Subject to Article 27 of the Contract, each Participant shall have the undivided percentage 
+interest determined under the Contract and/or as agreed by the Participants (“Participating 
+Interest”), provided that each Participant's Participating Interest shall not be less than seven 
+point five percent (7.5%).  Each Participant shall participate in proportion to its respective 
+Participating Interest in all costs, expenses and liabilities incurred pursuant to the Contract or 
+JOA and shall own, in the same proportion, the Contractor's rights under the Contract and the 
+Participants' rights under the JOA. 
+CLAUSE 3. 
+OPERATOR 
+3.1 
+The Operator appointed in accordance with the Contract, shall have exclusive 
+management and control of Petroleum Operations prior to the formation of the Joint 
+Operating Company. 
+3.2 
+Operator may, at any time resign as such by giving the Participants notice in writing.
+
+(excluding State Partner) shall pay the defaulted amount on behalf of the Defaulting 
+Company, in proportion to their Participating Interests or in any other proportion they 
+may agree upon. 
+7.2 
+The Defaulting Company shall have the right to remedy the default at any time prior to 
+forfeiture, as hereinafter provided, by payment in full to the Operator or, if the Non-
+Defaulting Companies have paid any amounts under Clause 7.1 of this JOA, to the Non-
+Defaulting Companies, in proportion to the amounts so paid by them, of all amounts 
+which the Defaulting Company has failed to pay, together with interest thereon on a day 
+to day basis at the rate of LIBOR plus five percent (5%).  
+If a Defaulting Company has not remedied the default by the thirtieth (30th) day, then, 
+during the continuance of such default, the Defaulting Company shall not be entitled to 
+its Participating Interest share of Petroleum Costs, Supplementary Costs and
+
+Definitive Model Gas Development and Production Service Contract (“GDPSC”) Sept 10, 2010 
+ 
+67 
+ 
+ADDENDUM ONE – HEADS OF JOINT OPERATING AGREEMENT 
+This Addendum One is attached to and made part of the Gas Development and Production 
+Service Contract for the _______ Contract Area.  Terms defined in the Development and 
+Production Service Contract shall have the same meanings for the purpose of this Heads of 
+Agreement.  The parties to the Joint Operating Agreement are the entities constituting 
+Contractor. 
+CLAUSE 1. 
+SCOPE 
+This Heads of Joint Operating Agreement is to provide for the basic principles to be included in 
+a Joint Operating Agreement (“JOA”) to be executed among the entities constituting Contractor 
+(hereinafter referred to individually as “Participant” or collectively as “Participants”). 
+CLAUSE 2. 
+PARTICIPATING INTEREST 
+Subject to Article 27 of the Contract, each Participant shall have the undivided percentage
+
+Clause Name: Governing Law
+Required Clause Text: This contract shall be governed by and construed in accordance with the laws of the jurisdiction specified in the contract.
+Relevant Contract Excerpts: Definitive Model Gas Development and Production Service Contract (“GDPSC”) Sept 10, 2010 
+ 
+2 
+ 
+ARTICLE 1 – DEFINITIONS 
+Except as specifically provided herein, any reference to an Article, Annex, or Addendum shall 
+be construed as a reference to Article, Annex, or Addendum to this Contract.  In this Contract, 
+including its Annexes and Addenda, words in the singular include the plural and vice versa and 
+except where the context otherwise requires, the following terms shall have the meanings set 
+out as follows: 
+1.1 
+“Accounting Procedures” means the accounting procedures and requirements set out 
+in Annex C. 
+1.2 
+“Affiliate” in relation to any Contractor’s entity, means: 
+(a) 
+a company which controls such entity, or 
+(b) 
+a company which is controlled by such entity, or 
+(c) 
+a company which is controlled by a company which controls such entity. 
+ 
+For the purpose of this definition, “control” means the power to dictate and conduct the
+
+which shall embody the principles set out in this JOC Heads of Agreement.  Pending the issue 
+of the said Charter, the provisions of this JOC Heads of Agreement setting forth the principal 
+terms of the charter shall apply as the provisional charter. 
+CLAUSE 15. MODIFICATION OF THE CHARTER OF JOC 
+Contractor and ROC may, by mutual agreement, modify the terms of the Charter of the JOC 
+provided that such modification will not be in conflict with the provisions of this Addendum Three 
+or the Contract. 
+CLAUSE 16. HAND-OVER OF OPERATORSHIP 
+Operatorship including all books and records shall be transferred to JOC. 
+CLAUSE 17. GOVERNING LAW AND ARBITRATION 
+The Law shall apply to the JOC, if and to the same extent it applies to the Contractor, Operator 
+and/or the Contract in accordance with Article 29.  To the extent that the Parties determine that 
+it would be appropriate to prepare a shareholders’ agreement in respect of JOC, such
+
+(excluding production for testing purposes) and delivery of the same at the relevant 
+Transfer Point(s) under a program of regular production and transfer. 
+1.16 
+“Company” means any entity that is a signatory party to this Contract and that forms 
+part of the Contractor, excluding the State Partner, and at any time thereafter shall 
+include their legal successors and permitted assignees. 
+1.17 
+“Companies” means, collectively, each Company that comprises the Contractor, 
+excluding the State Partner, and at any time thereafter shall include their legal 
+successors and permitted assignees. 
+1.18 
+“Contract” means this agreement between the Parties, including the Annexes and 
+Addenda attached hereto, as amended or supplemented from time to time in accordance 
+with this Contract. 
+1.19 
+“Contract Area” means the exploration, appraisal, development and production area 
+covered by this Contract, as described in Annex A and outlined in Annex B. 
+1.20
+
+Clause Name: Dispute Resolution
+Required Clause Text: Any dispute arising under or in connection with this contract shall be resolved through amicable negotiations, failing which it shall be referred to arbitration in accordance with the applicable rules.
+Relevant Contract Excerpts: Transporter's personnel concerning operation and maintenance to be conducted before 
+handing them over to the Transporter.  Operator shall provide Transporter with all 
+documents and guarantees relating to the said Transportation Facilities.  Operator and 
+Transporter shall agree in advance on a procedure for smooth hand-over of the 
+Transportation Facilities after completion and commissioning. 
+CLAUSE 9. 
+ EFFECTIVE DATE AND TERM 
+This Heads of Petroleum Transfer Agreement shall be valid and effective as from the Effective 
+Date and shall continue in effect until the expiry or termination of the Contract or upon the 
+Operator and Transporter entering into the Petroleum Transfer Agreement, whichever is the 
+earlier. 
+CLAUSE 10. GOVERNING LAW AND ARBITRATION 
+The Petroleum Transfer Agreement shall be governed by, construed, interpreted and applied in
+
+and/or the Contract in accordance with Article 29.  To the extent that the Parties determine that 
+it would be appropriate to prepare a shareholders’ agreement in respect of JOC, such 
+shareholders agreement shall be governed by, and construed in accordance with, the Law.  Any 
+dispute arising from or in connection with such shareholders agreement or the charter of JOC 
+shall be settled in accordance with Article 37 of the Contract. 
+CLAUSE 18. CONFIDENTIALITY 
+Confidentiality provisions of Article 33 of the Contract shall apply for this Heads of Agreement, 
+subsequent Charter and operations of JOC. 
+CLAUSE 19. EFFECTIVE DATE AND TERM 
+This Heads of Agreement shall come into force on the Effective Date and shall continue in effect
+
+Sales Agreement. 
+CLAUSE 12. PETROLEUM TRANSFER AGREEMENT 
+Within six (6) months from the Effective Date, the Operator shall enter into the Petroleum 
+Transfer Agreement with Transporter which shall embody the principles in this Addendum Two 
+and it may include such other provisions as customarily used by the international petroleum 
+industry and shall continue in effect for as long as the Contract is in effect. 
+(End of Addendum Two)
+
+Clause Name: Assignment
+Required Clause Text: The Contractor shall not assign or transfer its rights or obligations under this contract without the prior written consent of the Company.
+Relevant Contract Excerpts: (excluding production for testing purposes) and delivery of the same at the relevant 
+Transfer Point(s) under a program of regular production and transfer. 
+1.16 
+“Company” means any entity that is a signatory party to this Contract and that forms 
+part of the Contractor, excluding the State Partner, and at any time thereafter shall 
+include their legal successors and permitted assignees. 
+1.17 
+“Companies” means, collectively, each Company that comprises the Contractor, 
+excluding the State Partner, and at any time thereafter shall include their legal 
+successors and permitted assignees. 
+1.18 
+“Contract” means this agreement between the Parties, including the Annexes and 
+Addenda attached hereto, as amended or supplemented from time to time in accordance 
+with this Contract. 
+1.19 
+“Contract Area” means the exploration, appraisal, development and production area 
+covered by this Contract, as described in Annex A and outlined in Annex B. 
+1.20
+
+Definitive Model Gas Development and Production Service Contract (“GDPSC”) Sept 10, 2010 
+ 
+2 
+ 
+ARTICLE 1 – DEFINITIONS 
+Except as specifically provided herein, any reference to an Article, Annex, or Addendum shall 
+be construed as a reference to Article, Annex, or Addendum to this Contract.  In this Contract, 
+including its Annexes and Addenda, words in the singular include the plural and vice versa and 
+except where the context otherwise requires, the following terms shall have the meanings set 
+out as follows: 
+1.1 
+“Accounting Procedures” means the accounting procedures and requirements set out 
+in Annex C. 
+1.2 
+“Affiliate” in relation to any Contractor’s entity, means: 
+(a) 
+a company which controls such entity, or 
+(b) 
+a company which is controlled by such entity, or 
+(c) 
+a company which is controlled by a company which controls such entity. 
+ 
+For the purpose of this definition, “control” means the power to dictate and conduct the
+
+are performed in accordance with Best International Petroleum Industry Practices.  In 
+particular, the establishment of the JOC shall in no way relieve Contractor of its 
+obligations to achieve the production targets under the Contract. 
+CLAUSE 5. 
+FINANCING 
+The JOC shall have neither profit nor loss.  Costs, expenses and expenditures, incurred and 
+paid by JOC to carry out Petroleum Operations shall be financed by Contractor and recovered 
+as Petroleum Costs or Supplementary Costs according with approved Work Programs and 
+Budgets in accordance with the provisions of the Contract. 
+CLAUSE 6. 
+FUNCTION OF JOC 
+6.1 
+The JOC shall not own any right, title or interest under the Contract or in the Petroleum 
+produced from the Contract Area, and shall not be required as a principal for any 
+financing.  JOC shall function as Operator and shall assume all relevant responsibilities 
+of Operator under the Contract. 
+6.2
+
+    ### Instructions:
+    - For each clause:
+        - Use only the provided relevant excerpts for that clause.
+        - If it is completely missing, return:
+            "missing_clause": "Missing",
+            "reason":"<brief reason>",
+            "extracted_text": null
+        - If it exists but is vague, generic, or non-compliant, return:
+            "missing_clause": "Insufficient",
+            "reason":"<brief reason>",
+            "extracted_text": "<first 50 words from the original clause in the contract>"
+        - If it exists and is fully adequate, return:
+            "missing_clause": "Sufficient",
+            "reason":"<brief reason>",
+            "extracted_text": "<first 50 words from the original clause in the contract>"
+
+    - Preserve exact formatting from the contract in "extracted_text".
+    - Output a single JSON object in the format:
+
+    {
+      "description": "<2–3 sentence summary of the contract>",
+      "analysis": [
+        {
+          "compliance_area": "<clause_name>",
+          "missing_clause": "<Missing / Insufficient / Sufficient>",
+          "reason": "<brief reason>",
+          "extracted_text": "<verbatim clause text or null>"
+        },
+        ...
+      ]
+    }
+
+    Return ONLY the JSON object. Do not include any explanation outside the JSON.
+    

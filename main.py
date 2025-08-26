@@ -14,6 +14,9 @@ from pydantic import BaseModel
 from typing import Optional
 from pymongo import MongoClient
 from io import BytesIO
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+from langchain_huggingface import HuggingFaceEmbeddings
 
 
 # ---------- Database Connection ----------
@@ -88,26 +91,26 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
         raise HTTPException(status_code=400, detail=f"PDF processing failed: {str(e)}")
 
 # ---------- Prompt Template ---------- #
-def build_prompt(text: str, clauses_text: list, model: str) -> str:
+def build_prompt(summary_context: str, clauses_section: str, model: str) -> str:
     """
     Build a prompt to:
-    1. Generate a brief description of the uploaded contract PDF.
-    2. Check if each clause in clauses_text exists in the contract text.
-       clauses_text: list of dicts, each dict has keys 'clause_name' and 'clause_text'
+    1. Generate a brief description of the uploaded contract PDF based on summary context.
+    2. Check if each clause exists in the contract using provided relevant excerpts.
     """
-    print(clauses_text)
     return f"""
     You are an expert contract reviewer.
 
-    Task 1: Provide a brief description of the uploaded contract text. 
+    Task 1: Provide a brief description of the uploaded contract based on the following excerpt: 
+    {summary_context}
     - Summarize in 2–3 sentences what the contract is about, covering key parties, purpose, and type of obligations.
 
-    Task 2: Analyze the contract text and check for the presence and adequacy of the following clauses:
+    Task 2: Analyze the contract and check for the presence and adequacy of the following clauses using their respective relevant excerpts:
 
-    {clauses_text}
+    {clauses_section}
 
     ### Instructions:
     - For each clause:
+        - Use only the provided relevant excerpts for that clause.
         - If it is completely missing, return:
             "missing_clause": "Missing",
             "reason":"<brief reason>",
@@ -138,50 +141,97 @@ def build_prompt(text: str, clauses_text: list, model: str) -> str:
     }}
 
     Return ONLY the JSON object. Do not include any explanation outside the JSON.
-
-    Contract text to review:
-    \"\"\"{text}\"\"\"
     """
 
 # ---------- LLM Router ---------- #
 def analyze_contract(text: str, model: str, clause_ids: list[int]) -> list[dict]:
-    # Load clauses from MongoDB
+    # Load clauses
     clauses = load_selected_clauses(clause_ids)
-    print("--------------")
-    print(clauses)
-
     if not isinstance(clauses, list) or not all(isinstance(c, dict) for c in clauses):
         raise HTTPException(status_code=500, detail="Invalid clause format from DB")
 
-    # Build prompt
-    clauses_text = "\n\n".join(
-        [f"Clause Name: {c['clause_name']}\nClause Text: {c['clause_text']}" for c in clauses]
-    )
-    prompt = build_prompt(text, clauses_text, model)
-    print(prompt)
+    # Init embeddings + vector store
+    embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    chunks = text_splitter.split_text(text)
+    vector_store = FAISS.from_texts(chunks, embedding_model)
+    retriever = vector_store.as_retriever(search_kwargs={"k": 3})
 
-    if model == "1":
-        llm = Ollama(model="mistral", temperature=0)
-        return llm.invoke(prompt).strip()
-    
-    elif model == "2":
-        try:
+    # Summary context (same for all batches)
+    summary_query = "Contract overview: parties involved, main purpose, key obligations"
+    summary_docs = retriever.invoke(summary_query)
+    summary_context = "\n\n".join([d.page_content for d in summary_docs])
+
+    # 🔹 Split clauses into smaller batches
+    batch_size = 3
+    final_results = []
+
+    for i in range(0, len(clauses), batch_size):
+        batch = clauses[i:i+batch_size]
+
+        # Retrieve context for each clause in this batch
+        contexts = {}
+        for clause in batch:
+            query = f"{clause['clause_name']}: {clause['clause_text']}"
+            docs = retriever.invoke(query)
+            context = "\n\n".join([d.page_content for d in docs])
+            contexts[clause['clause_name']] = context
+
+        # Build clauses section for this batch
+        clauses_section = "\n\n".join(
+            [f"Clause Name: {c['clause_name']}\nRequired Clause Text: {c['clause_text']}\nRelevant Contract Excerpts: {contexts.get(c['clause_name'], '')}" for c in batch]
+        )
+
+        # Build prompt
+        prompt = build_prompt(summary_context, clauses_section, model)
+
+        # Call LLM
+        raw_result = None
+        if model == "1":
+            llm = Ollama(model="mistral", temperature=0)
+            raw_result = llm.invoke(prompt).strip()
+        elif model == "2":
             gemini_model = genai.GenerativeModel("models/gemini-2.5-pro")
-            response = gemini_model.generate_content(prompt)
-            return response.text.strip()
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Gemini API Error: {str(e)}")
+            raw_result = gemini_model.generate_content(prompt).text.strip()
+        elif model == "3":
+            response = query_endpoint(prompt)
+            parsed = json.loads(response)
+            raw_result = parsed["response"] if "response" in parsed else parsed
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported model.")
 
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported model. Use 'mistral' or 'gemini'.")
+        # Parse JSON safely
+        if isinstance(raw_result, str):
+            try:
+                parsed_batch = json.loads(raw_result.replace("```json", "").replace("```", "").strip())
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Invalid JSON from LLM: {str(e)}")
+        elif isinstance(raw_result, dict):
+            parsed_batch = raw_result
+        else:
+            raise HTTPException(status_code=500, detail="Unexpected result type.")
+
+        # Merge results
+        if "analysis" in parsed_batch:
+            final_results.extend(parsed_batch["analysis"])
+
+    return {"description": "Contract analysis", "analysis": final_results}
 
 client = MongoClient("mongodb://localhost:27017/")
 db = client["Contract-Compliance-Analyzer"]
 contracts_cache = db["contracts_cache"]
 
-def compute_pdf_hash(file_bytes: bytes) -> str:
-    """Generate a unique hash for a PDF file"""
-    return hashlib.sha256(file_bytes).hexdigest()
+def compute_cache_key(file_bytes: bytes, clause_ids: list[int]) -> str:
+    """Generate a unique cache key for a PDF + selected clauses"""
+    normalized_clauses = sorted(clause_ids)
+
+    combined = {
+        "pdf_hash": hashlib.sha256(file_bytes).hexdigest(),
+        "clauses": normalized_clauses
+    }
+
+    # Hash the combined dict as a JSON string to produce a unique key
+    return hashlib.sha256(json.dumps(combined, sort_keys=True).encode()).hexdigest()
 
 @app.post("/analyze-contract", tags=["Contract Compliance"])
 async def analyze_contract_api(
@@ -191,16 +241,18 @@ async def analyze_contract_api(
     ):
     try:
         print(f"Raw clauses from form: {clauses}")
-        clause_ids_list = [int(c.strip()) for c in clauses.strip("[]").split(",") if c.strip()]
-        print(f"Parsed clause IDs: {clause_ids_list}")
+        clause_ids_list = sorted([int(c.strip()) for c in clauses.strip("[]").split(",") if c.strip()])
+        print(f"Normalized clause IDs: {clause_ids_list}")
 
         file_bytes = await file.read()
-        pdf_hash = compute_pdf_hash(file_bytes)
+        pdf_hash = compute_cache_key(file_bytes,clause_ids_list)
 
-        # ✅ Check cache
-        cached_doc = contracts_cache.find_one({"_id": pdf_hash})
+        # ✅ Check cache using pdf_hash + sorted clause_ids_list
+        cached_doc = contracts_cache.find_one(
+            {"_id": pdf_hash, "clauses": clause_ids_list}
+        )
+
         if cached_doc:
-            # If feedback was "dislike", re-run LLM
             if cached_doc.get("feedback", "").lower() == "dislike":
                 print("Feedback = dislike → re-running LLM")
             else:
@@ -213,7 +265,7 @@ async def analyze_contract_api(
         # Extract text and analyze
         text = extract_text_from_pdf(file_bytes)
         raw_result = analyze_contract(text, model, clause_ids_list)
-
+        print(raw_result)
         if isinstance(raw_result, (list, dict)):
             parsed_result = raw_result
         elif isinstance(raw_result, str):
@@ -225,10 +277,10 @@ async def analyze_contract_api(
                 raise HTTPException(status_code=500, detail="LLM did not return valid JSON.")
         else:
             raise HTTPException(status_code=500, detail="Unexpected result type from analysis.")
-        print(pdf_hash)
-        # Save to MongoDB
+
+        # ✅ Save using normalized clause_ids_list
         contracts_cache.update_one(
-            {"_id": pdf_hash},
+            {"_id": pdf_hash, "clauses": clause_ids_list},
             {
                 "$set": {
                     "analysis": parsed_result,
@@ -250,8 +302,8 @@ async def analyze_contract_api(
         raise HTTPException(status_code=500, detail=f"Error in analyze_contract_api: {str(e)}")
 
 # #-----------Compute PDF Hash--------#
-# def compute_pdf_hash(file_bytes: bytes) -> str:
-#     return hashlib.sha256(file_bytes).hexdigest()
+def compute_pdf_hash(file_bytes: bytes) -> str:
+    return hashlib.sha256(file_bytes).hexdigest()
 
 #---------Read Cache File if Exists-----#
 CACHE_DIR = Path(__file__).resolve().parent / "json_cache"
@@ -810,11 +862,9 @@ async def chatbot_file(
             if not text.strip():
                 raise HTTPException(status_code=400, detail="No text extracted from PDF")
 
-            # Split into smaller chunks
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
             chunks = text_splitter.split_text(text)
 
-            # Build FAISS vector store
             vector_store = FAISS.from_texts(chunks, embedding_model)
             vector_store_cache[pdf_hash] = vector_store
         else:
@@ -853,39 +903,39 @@ async def chatbot_file(
         Answer:
         """
 
-        # Step 7: Call LLM
-        answer = None
-        if model == "1":
-            client = Client(host="http://localhost:11434")
-            response = client.chat(
-                model="mistral",
-                messages=[{"role": "user", "content": prompt}],
-                options={"temperature": 0}
-            )
-            answer = response["message"]["content"].strip()
+        try:
+            logger.debug("---------------------")
+            raw_response = query_endpoint(prompt)
+            parsed_once = json.loads(raw_response)
 
-        elif model == "2":
-            try:
-                gemini_model = genai.GenerativeModel("models/gemini-2.5-pro")
-                response = gemini_model.generate_content(prompt)
-                logger.debug(f"Gemini raw response: {json.dumps(response.to_dict(), indent=2)}")
-                if hasattr(response, "candidates") and response.candidates:
-                    for candidate in response.candidates:
-                        if hasattr(candidate.content, "parts") and candidate.content.parts:
-                            answer = candidate.content.parts[0].text.strip()
-                            break
-                if not answer and hasattr(response, "text") and response.text:
-                    answer = response.text.strip()
-                if not answer:
-                    logger.error(f"No valid content in Gemini response: {response.to_dict()}")
-                    raise ValueError("No valid content in Gemini response")
-                logger.debug(f"Token usage: {response.usage_metadata.prompt_token_count} prompt, {response.usage_metadata.total_token_count} total")
-            except Exception as e:
-                logger.error(f"Gemini API error: {str(e)}")
-                raise HTTPException(status_code=500, detail=f"Gemini API error: {str(e)}")
+            # If API wraps JSON inside "response"
+            if isinstance(parsed_once, dict) and "response" in parsed_once:
+                parsed_final = parsed_once["response"]  # already plain text
+            else:
+                parsed_final = parsed_once
 
-        else:
-            raise HTTPException(status_code=400, detail="Invalid model. Use '1' or '2'.")
+            logger.debug(f"Parsed response: {parsed_final}")
+
+            if isinstance(parsed_final, dict):
+                if "description" in parsed_final:
+                    answer = parsed_final["description"]
+                elif "analysis" in parsed_final:
+                    # Join reasons as fallback
+                    reasons = [
+                        item.get("reason", "")
+                        for item in parsed_final["analysis"]
+                        if isinstance(item, dict)
+                    ]
+                    answer = " | ".join([r for r in reasons if r]) or "No information found"
+                else:
+                    answer = str(parsed_final)
+            else:
+                answer = str(parsed_final)
+
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=500, detail=f"Invalid JSON response from endpoint: {str(e)} | Raw: {raw_response}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Endpoint Error: {str(e)}")  
 
         # Step 8: Cache response
         db.contracts_cache.update_one(
@@ -912,27 +962,44 @@ async def chatbot_file(
         raise HTTPException(status_code=500, detail=f"Chatbot error: {str(e)}")
 
 
-# Optional: Add a chat-only endpoint for questions without file upload
-@app.post("/chatbot-chat", tags=["Contract Chatbot"])
-async def chatbot_chat(
-    question: str = Form(...),
-    model: str = Form(...)
-    ):
-    """Handle chat without file upload - only for greetings and general contract questions"""
-    try:
-        # Handle greetings
-        if is_greeting(question):
-            return {
-                "answer": "Hi, I am Contract Genie. How can I help you?",
-                "cachekey": "greeting"
-            }
-        
-        # For non-greeting questions without a file, redirect to file upload
-        return {
-            "answer": "Please upload a contract document so I can help you with your question.",
-            "cachekey": "no_file"
-        }
+import json
+def create_or_overwrite_prompt_file(prompt_content: str, file_path: str = "prompt.txt") -> None:
+    """
+    Creates or overwrites a text file named prompt.txt with the given content as valid JSON.
     
+    Args:
+        prompt_content (str): The content to write to the file, expected to be a valid JSON string.
+        file_path (str): The path to the file (default: 'prompt.txt').
+    """
+    try:
+        # Validate that prompt_content is valid JSON
+        json.loads(prompt_content)
+        with open(file_path, "w", encoding="utf-8") as file:
+            # Create JSON structure with prompt_content as the value of the "prompt" key
+            json.dump({"prompt": prompt_content}, file, ensure_ascii=False, indent=2)
+        print(f"Successfully created or overwrote {file_path} with valid JSON")
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON content: {str(e)}")
     except Exception as e:
-        logger.error(f"Chat error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
+        print(f"Error writing to {file_path}: {str(e)}")
+
+
+import requests
+import json
+from fastapi import HTTPException
+
+def query_endpoint(param_string):
+    url = "http://172.16.117.136:8000/query"
+    # Preserve JSON structure, only trim outer whitespace
+    cleaned_string = param_string.strip() if param_string else ""
+    payload = {"prompt": cleaned_string}
+    try:
+        print("Payload:", payload)
+        response = requests.post(url, json=payload)
+        print("Status code:", response.status_code)
+        print("Raw response:", response.text)
+        response.raise_for_status()
+        return response.text
+    except requests.RequestException as e:
+        print("Request error:", str(e))
+        return f"Error: {str(e)}"
