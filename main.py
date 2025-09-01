@@ -102,7 +102,9 @@ def build_prompt(summary_context: str, clauses_section: str, model: str) -> str:
 
     Task 1: Provide a brief description of the uploaded contract based on the following excerpt: 
     {summary_context}
-    - Summarize in 2–3 sentences what the contract is about, covering key parties, purpose, and type of obligations.
+    - The description MUST be at least 50 words long.
+    - It should be written in 2–3 complete sentences.
+    - Cover key parties, purpose, subject matter, and type of obligations.
 
     Task 2: Analyze the contract and check for the presence and adequacy of the following clauses using their respective relevant excerpts:
 
@@ -144,7 +146,7 @@ def build_prompt(summary_context: str, clauses_section: str, model: str) -> str:
     """
 
 # ---------- LLM Router ---------- #
-def analyze_contract(text: str, model: str, clause_ids: list[int]) -> list[dict]:
+def analyze_contract(text: str, model: str, clause_ids: list[int]) -> dict:
     # Load clauses
     clauses = load_selected_clauses(clause_ids)
     if not isinstance(clauses, list) or not all(isinstance(c, dict) for c in clauses):
@@ -157,19 +159,32 @@ def analyze_contract(text: str, model: str, clause_ids: list[int]) -> list[dict]
     vector_store = FAISS.from_texts(chunks, embedding_model)
     retriever = vector_store.as_retriever(search_kwargs={"k": 3})
 
-    # Summary context (same for all batches)
+    # Step 1: Generate summary
     summary_query = "Contract overview: parties involved, main purpose, key obligations"
     summary_docs = retriever.invoke(summary_query)
     summary_context = "\n\n".join([d.page_content for d in summary_docs])
+    summary_prompt = build_summary_prompt(summary_context)
 
-    # 🔹 Split clauses into smaller batches
-    batch_size = 3
+    # Call LLM for summary
+    summary_result = None
+    if model == "1":
+        llm = Ollama(model="mistral", temperature=0)
+        summary_result = llm.invoke(summary_prompt).strip()
+    elif model == "2":
+        gemini_model = genai.GenerativeModel("models/gemini-2.5-pro")
+        summary_result = gemini_model.generate_content(summary_prompt).text.strip()
+    elif model == "3":
+        response = query_endpoint(summary_prompt)
+        parsed = json.loads(response)
+        summary_result = parsed["response"] if "response" in parsed else parsed
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported model.")
+
+    # Step 2: Analyze clauses (existing logic)
     final_results = []
-
+    batch_size = 3
     for i in range(0, len(clauses), batch_size):
-        batch = clauses[i:i+batch_size]
-
-        # Retrieve context for each clause in this batch
+        batch = clauses[i:i + batch_size]
         contexts = {}
         for clause in batch:
             query = f"{clause['clause_name']}: {clause['clause_text']}"
@@ -177,15 +192,12 @@ def analyze_contract(text: str, model: str, clause_ids: list[int]) -> list[dict]
             context = "\n\n".join([d.page_content for d in docs])
             contexts[clause['clause_name']] = context
 
-        # Build clauses section for this batch
         clauses_section = "\n\n".join(
             [f"Clause Name: {c['clause_name']}\nRequired Clause Text: {c['clause_text']}\nRelevant Contract Excerpts: {contexts.get(c['clause_name'], '')}" for c in batch]
         )
-
-        # Build prompt
         prompt = build_prompt(summary_context, clauses_section, model)
 
-        # Call LLM
+        # Call LLM for clause analysis
         raw_result = None
         if model == "1":
             llm = Ollama(model="mistral", temperature=0)
@@ -202,20 +214,28 @@ def analyze_contract(text: str, model: str, clause_ids: list[int]) -> list[dict]
 
         # Parse JSON safely
         if isinstance(raw_result, str):
+            cleaned_result = raw_result.replace("```json", "").replace("```", "").strip()
+            if not cleaned_result:
+                raise HTTPException(status_code=500, detail="Empty response from LLM")
             try:
-                parsed_batch = json.loads(raw_result.replace("```json", "").replace("```", "").strip())
+                parsed_batch = safe_json_loads(raw_result if isinstance(raw_result, str) else json.dumps(raw_result))
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Invalid JSON from LLM: {str(e)}")
+
         elif isinstance(raw_result, dict):
             parsed_batch = raw_result
         else:
             raise HTTPException(status_code=500, detail="Unexpected result type.")
 
-        # Merge results
+        # Merge analysis results
         if "analysis" in parsed_batch:
             final_results.extend(parsed_batch["analysis"])
 
-    return {"description": "Contract analysis", "analysis": final_results}
+    # Step 3: Combine summary and analysis
+    return {
+        "description": summary_result or "Summary could not be generated.",
+        "analysis": final_results
+    }
 
 client = MongoClient("mongodb://localhost:27017/")
 db = client["Contract-Compliance-Analyzer"]
@@ -240,50 +260,30 @@ async def analyze_contract_api(
     clauses: str = Form(...)
     ):
     try:
-        print(f"Raw clauses from form: {clauses}")
         clause_ids_list = sorted([int(c.strip()) for c in clauses.strip("[]").split(",") if c.strip()])
-        print(f"Normalized clause IDs: {clause_ids_list}")
-
         file_bytes = await file.read()
-        pdf_hash = compute_cache_key(file_bytes,clause_ids_list)
+        pdf_hash = compute_cache_key(file_bytes, clause_ids_list)
 
-        # ✅ Check cache using pdf_hash + sorted clause_ids_list
+        # Check cache
         cached_doc = contracts_cache.find_one(
             {"_id": pdf_hash, "clauses": clause_ids_list}
         )
-
-        if cached_doc:
-            if cached_doc.get("feedback", "").lower() == "dislike":
-                print("Feedback = dislike → re-running LLM")
-            else:
-                print("Returning cached analysis from MongoDB")
-                return {
-                    "analysis": cached_doc.get("analysis", []),
-                    "cachekey": pdf_hash
-                }
+        if cached_doc and cached_doc.get("feedback", "").lower() != "dislike":
+            return {
+                "analysis": cached_doc.get("analysis", []),
+                "cachekey": pdf_hash
+            }
 
         # Extract text and analyze
         text = extract_text_from_pdf(file_bytes)
-        raw_result = analyze_contract(text, model, clause_ids_list)
-        print(raw_result)
-        if isinstance(raw_result, (list, dict)):
-            parsed_result = raw_result
-        elif isinstance(raw_result, str):
-            try:
-                parsed_result = json.loads(
-                    raw_result.replace("```json", "").replace("```", "").strip()
-                )
-            except json.JSONDecodeError:
-                raise HTTPException(status_code=500, detail="LLM did not return valid JSON.")
-        else:
-            raise HTTPException(status_code=500, detail="Unexpected result type from analysis.")
+        result = analyze_contract(text, model, clause_ids_list)
 
-        # ✅ Save using normalized clause_ids_list
+        # Save to cache
         contracts_cache.update_one(
             {"_id": pdf_hash, "clauses": clause_ids_list},
             {
                 "$set": {
-                    "analysis": parsed_result,
+                    "analysis": result,
                     "clauses": clause_ids_list,
                     "feedback": "",
                     "feedback_given": False
@@ -293,7 +293,7 @@ async def analyze_contract_api(
         )
 
         return {
-            "analysis": parsed_result,
+            "analysis": result,
             "cachekey": pdf_hash
         }
 
@@ -906,6 +906,7 @@ async def chatbot_file(
         try:
             logger.debug("---------------------")
             raw_response = query_endpoint(prompt)
+            print(raw_response)
             parsed_once = json.loads(raw_response)
 
             # If API wraps JSON inside "response"
@@ -984,6 +985,7 @@ def create_or_overwrite_prompt_file(prompt_content: str, file_path: str = "promp
         print(f"Error writing to {file_path}: {str(e)}")
 
 
+#------------------------------------------------------------------------------------------------------------------------------------------------
 import requests
 import json
 from fastapi import HTTPException
@@ -1003,3 +1005,39 @@ def query_endpoint(param_string):
     except requests.RequestException as e:
         print("Request error:", str(e))
         return f"Error: {str(e)}"
+
+def build_summary_prompt(context: str) -> str:
+    """
+    Build a prompt to generate a brief summary of the contract.
+    """
+    return f"""
+    You are an expert contract reviewer. Based on the following contract excerpt, provide a brief summary of the contract in 2–3 sentences (at least 50 words). Include key parties, purpose, subject matter, and type of obligations.
+
+    Contract Excerpt:
+    {context}
+
+    Instructions:
+    - Return only the summary as plain text.
+    - Ensure the summary is clear, concise, and meets the word count requirement.
+    """
+
+import re, json
+
+def safe_json_loads(raw_result: str) -> dict:
+    """
+    Clean LLM output and parse as JSON safely.
+    """
+    if not raw_result:
+        raise ValueError("Empty LLM response")
+
+    # Remove code fences if any
+    cleaned = raw_result.replace("```json", "").replace("```", "").strip()
+
+    # Extract only the JSON part between the first { and the last }
+    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+    if not match:
+        raise ValueError(f"No valid JSON object found in response: {cleaned[:200]}")
+    
+    json_str = match.group(0)
+
+    return json.loads(json_str)
