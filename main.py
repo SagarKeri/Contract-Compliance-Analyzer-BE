@@ -761,12 +761,15 @@ from fastapi import UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
 import json
 import re
-from ollama import Client  # ✅ Uncomment and fix
+from ollama import Client
 import google.generativeai as genai
 import logging
+from typing import Optional, List, Dict, Any
+from pymongo import MongoClient
+from bson import ObjectId
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Embedding model
@@ -779,6 +782,60 @@ class ChatbotFileInput(BaseModel):
     question: str
     model: str  # "1" = Mistral, "2" = Gemini
 
+class ChatbotMetadataInput(BaseModel):
+    question: str
+    model: str
+
+import re
+
+def normalize_query(q: str) -> str:
+    """
+    Normalize synonyms in the query so matching works consistently.
+    """
+    replacements = {
+        # Domain synonyms
+        r"\bindustry\b": "domain",
+        r"\bindustries\b": "domains",
+        r"\bsector\b": "domain",
+        r"\bsectors\b": "domains",
+
+        # Country synonyms
+        r"\bnation\b": "country",
+        r"\bnations\b": "countries",
+        r"\bstates?\b": "countries",
+        r"\bregion\b": "country",
+        r"\bregions\b": "countries",
+
+        # Clause synonyms
+        r"\bprovision\b": "clause",
+        r"\bprovisions\b": "clauses",
+        r"\barticle\b": "clause",
+        r"\barticles\b": "clauses",
+        r"\bterm\b": "clause",
+        r"\bterms\b": "clauses",
+    }
+
+    for pattern, repl in replacements.items():
+        q = re.sub(pattern, repl, q, flags=re.IGNORECASE)
+
+    return q.lower().strip()
+
+def clean_entity_name(name: str) -> str:
+    """
+    Remove trailing keywords like domain, industry, clause, etc.
+    Example: "oil and gas domain" -> "oil and gas"
+    """
+    stopwords = [
+        "domain", "domains", "industry", "industries",
+        "sector", "sectors", "country", "countries",
+        "clause", "clauses", "provision", "provisions",
+        "article", "articles", "term", "terms"
+    ]
+    tokens = name.split()
+    if tokens and tokens[-1].lower() in stopwords:
+        tokens = tokens[:-1]
+    return " ".join(tokens).strip()
+
 def is_greeting(question: str) -> bool:
     """Check if the question is a greeting"""
     greetings = [
@@ -788,175 +845,480 @@ def is_greeting(question: str) -> bool:
     question_lower = question.lower().strip()
     return any(re.search(pattern, question_lower, re.IGNORECASE) for pattern in greetings)
 
-def is_contract_related(question: str, context: str = "") -> bool:
-    """Check if the question is related to contracts or legal documents"""
+def is_contract_related(question: str) -> bool:
+    q = question.lower().strip()
+
+    # Strong contract indicators
+    contract_phrases = [
+        "in the contract", "does the contract have", "is there any",
+        "under this contract", "mentioned in the contract"
+    ]
+
+    # Contract-related keywords (weaker signals)
     contract_keywords = [
-        'contract', 'agreement', 'clause', 'term', 'condition', 'obligation', 
-        'liability', 'payment', 'delivery', 'breach', 'termination', 'penalty',
-        'warranty', 'indemnity', 'confidentiality', 'non-disclosure', 'nda',
-        'jurisdiction', 'governing law', 'dispute', 'arbitration', 'renewal',
-        'amendment', 'modification', 'force majeure', 'intellectual property',
-        'proprietary', 'damages', 'compensation', 'fee', 'cost', 'price',
-        'schedule', 'milestone', 'deliverable', 'specification', 'requirement',
-        'compliance', 'regulatory', 'legal', 'law', 'rights', 'duties'
+        "termination", "payment", "confidentiality", "governing law",
+        "liability", "obligation", "condition", "agreement", "sub-clause",
+        "section", "rights", "responsibilities"
     ]
-    
-    question_lower = question.lower()
-    
-    # Check if question contains contract-related keywords
-    has_contract_keywords = any(keyword in question_lower for keyword in contract_keywords)
-    
-    # Check if context (retrieved from PDF) contains relevant information
-    has_relevant_context = bool(context and context.strip())
-    
-    # If we have relevant context from the contract PDF, it's likely contract-related
-    if has_relevant_context:
+
+    # 1. If any strong phrase is present → definitely contract
+    if any(phrase in q for phrase in contract_phrases):
         return True
-    
-    # If question has contract keywords, it's likely contract-related
-    if has_contract_keywords:
-        return True
-    
-    # Check for document-specific questions
-    document_questions = [
-        'what does this say', 'what is in this', 'summarize this', 'explain this',
-        'what are the', 'tell me about', 'find', 'search', 'look for'
-    ]
-    
-    if any(phrase in question_lower for phrase in document_questions):
-        return True
-    
+
+    # 2. If keywords appear *with contract context words*
+    if any(kw in q for kw in contract_keywords):
+        if "clause" in q or "contract" in q or "agreement" in q:
+            return True
+
     return False
 
+def is_metadata_query(question: str) -> bool:
+    """Check if the question is related to metadata (countries, domains, clauses)"""
+    question = question.lower().strip()
+    metadata_intents = [
+        "list", "show", "give me", "describe", "summary", "summarize",
+        "details of", "what are", "explain", "description of", "information on"
+    ]
+    metadata_keywords = [
+        'country', 'countries', 'domain', 'domains', 'clause', 'clauses',
+        'what countries', 'which countries', 'list countries', 'show countries',
+        'what domains', 'which domains', 'list domains', 'show domains',
+        'what clauses', 'which clauses', 'list clauses', 'show clauses',
+        'available countries', 'available domains', 'available clauses',
+        'force majeure', 'liability', 'oil and gas', 'metadata'
+    ]
+
+    if any(intent in question for intent in metadata_intents):
+        if any(word in question for word in metadata_keywords):
+            return True
+
+    # General metadata lookups
+    if "metadata" in question.lower():
+        return True
+
+    return False
+    
+def detect_intent(question: str) -> str:
+    """Detect whether the user wants list, count, existence, or detail"""
+    q = question.lower()
+
+    if any(kw in q for kw in ["how many", "number of", "count of"]):
+        return "count"
+    if any(kw in q for kw in ["are there", "is there", "does", "do "]):
+        return "existence"
+    if any(kw in q for kw in ["list", "show", "which", "available", "what"]):
+        return "list"
+    if any(kw in q for kw in ["explain", "describe", "summarize", "detail", "tell me about", "give me", "description", "summary", "information on"]):
+        return "detail"
+    return "unknown"
+
+
+def search_metadata_entities(question: str) -> tuple:
+    """
+    Return (countries, domains, clauses) based on entity keywords in question,
+    with robust joins (countries → domains → clauses).
+    """
+    q = normalize_query(question)   # normalize synonyms first
+
+    # --- MULTI-JOIN ---
+    # Example: "how many clauses are there for USA in oil and gas"
+    if "clause" in q and ("for" in q and "in" in q):
+        match = re.search(r'for (.+?) in (.+)', q)
+        if match:
+            country_name = clean_entity_name(match.group(1).strip())
+            domain_name = clean_entity_name(match.group(2).strip())
+
+            pipeline = [
+                {"$lookup": {
+                    "from": "domains",
+                    "localField": "domain_id",
+                    "foreignField": "_id",
+                    "as": "domain_info"
+                }},
+                {"$unwind": "$domain_info"},
+                {"$lookup": {
+                    "from": "countries",
+                    "localField": "domain_info.country_id",
+                    "foreignField": "_id",
+                    "as": "country_info"
+                }},
+                {"$unwind": "$country_info"},
+                {"$match": {
+                    "domain_info.domain_name": {"$regex": domain_name, "$options": "i"},
+                    "country_info.country_name": {"$regex": country_name, "$options": "i"}
+                }}
+            ]
+            clauses = list(db.clauses.aggregate(pipeline))
+            return [], [], clauses
+
+    # --- SINGLE-JOIN ---
+    # Countries for a domain
+    if "countries" in q and "for" in q:
+        domain_match = re.search(r'for (.+)', q)
+        if domain_match:
+            domain_name = clean_entity_name(domain_match.group(1).strip())
+            pipeline = [
+                {"$match": {"domain_name": {"$regex": domain_name, "$options": "i"}}},
+                {"$lookup": {
+                    "from": "countries",
+                    "localField": "country_id",
+                    "foreignField": "_id",
+                    "as": "country_info"
+                }},
+                {"$unwind": "$country_info"}
+            ]
+            domains = list(db.domains.aggregate(pipeline))
+            countries = [d["country_info"] for d in domains if "country_info" in d]
+            return countries, [], []
+
+    # Clauses for a domain
+    if "clauses" in q and "for" in q:
+        domain_match = re.search(r'for (.+)', q)
+        if domain_match:
+            domain_name = clean_entity_name(domain_match.group(1).strip())
+            pipeline = [
+                {"$lookup": {
+                    "from": "domains",
+                    "localField": "domain_id",
+                    "foreignField": "_id",
+                    "as": "domain_info"
+                }},
+                {"$unwind": "$domain_info"},
+                {"$match": {"domain_info.domain_name": {"$regex": domain_name, "$options": "i"}}}
+            ]
+            clauses = list(db.clauses.aggregate(pipeline))
+            return [], [], clauses
+
+    # Domains in a country
+    if "domains" in q and "in" in q:
+        country_match = re.search(r'in (.+)', q)
+        if country_match:
+            country_name = clean_entity_name(country_match.group(1).strip())
+            country = db.countries.find_one({
+                "country_name": {"$regex": country_name, "$options": "i"}
+            })
+            if country:
+                domains = list(db.domains.find({"country_id": country["_id"]}))
+                return [], domains, []
+
+    # --- DIRECT COLLECTION QUERIES ---
+    if "country" in q or "countries" in q:
+        return list(db.countries.find({})), [], []
+    if "domain" in q or "domains" in q:
+        return [], list(db.domains.find({})), []
+    if "clause" in q or "clauses" in q:
+        return [], [], list(db.clauses.find({}))
+
+    return [], [], []
+
+def format_metadata_response(question: str, intent: str, countries: List[Dict], domains: List[Dict], clauses: List[Dict]) -> str:
+    """Format metadata results based on intent classification, with join handling"""
+
+    # --- COUNT intent ---
+    if intent == "count":
+        print("Count intent detected")
+        if "country" in question.lower() or "countries" in question.lower():
+            print("Counting countries")
+            if countries:
+                print("Countries found:", countries)
+                return f"There {'is' if len(countries)==1 else 'are'} {len(countries)} country{'s' if len(countries)>1 else ''}: " + ", ".join(c.get("country_name","Unknown") for c in countries)
+            return "There are 0 countries."
+        if "domain" in question.lower() or "domains" in question.lower():
+            print("Counting domains")
+            if domains:
+                print("Domains found:", domains)
+                return f"There {'is' if len(domains)==1 else 'are'} {len(domains)} domain{'s' if len(domains)>1 else ''}: " + ", ".join(d.get("domain_name","Unknown") for d in domains)
+            return "There are 0 domains."
+        if "clause" in question.lower() or "clauses" in question.lower():
+            if clauses:
+                return f"There {'is' if len(clauses)==1 else 'are'} {len(clauses)} clause{'s' if len(clauses)>1 else ''}: " + ", ".join(c.get("clause_name","Unknown") for c in clauses)
+            return "There are 0 clauses."
+        return "No matching metadata found to count."
+
+        # --- EXISTENCE intent ---
+    if intent == "existence":
+        if countries: return f"There {'is' if len(countries)==1 else 'are'} {len(countries)} matching countr{'y' if len(countries)==1 else 'ies'}."
+        if domains: return f"There {'is' if len(domains)==1 else 'are'} {len(domains)} matching domain{'s' if len(domains)!=1 else ''}."
+        if clauses: return f"There {'is' if len(clauses)==1 else 'are'} {len(clauses)} matching clause{'s' if len(clauses)!=1 else ''}."
+        return "No matching results found."
+
+    # --- DETAIL intent ---
+    if intent == "detail" and clauses:
+        q = question.lower()
+        filtered_clauses = [
+            c for c in clauses 
+            if any(kw in c.get("clause_name", "").lower() for kw in q.split())
+        ]
+
+        # If no exact match, fallback to all
+        target_clauses = filtered_clauses if filtered_clauses else clauses
+
+        details = []
+        for c in target_clauses:
+            details.append({
+                "clause_name": c.get("clause_name", "Unknown"),
+                # "domain": (c.get("domain_info") or [{}])[0].get("domain_name", "Unknown"),
+                # "country": (c.get("country_info") or [{}])[0].get("country_name", "Unknown"),
+                "clause_summary": c.get("clause_text", "")[:300] + "..."
+            })
+
+        #details = []
+        #for c in clauses:
+        #    details.append({
+        #        "name": c.get("clause_name", "Unknown"),
+        #        "domain": (c.get("domain_info") or [{}])[0].get("domain_name", "Unknown"),
+        #        "country": (c.get("country_info") or [{}])[0].get("country_name", "Unknown"),
+        #        "text": c.get("clause_text", "")[:300] + "..."
+        #    })
+        return json.dumps(details, indent=2)
+
+    # --- LIST intent (fallback if no details) ---
+    if intent in ["list", "unknown"]:
+        if countries: return "Countries: " + ", ".join(c.get("country_name","Unknown") for c in countries)
+        if domains: return "Domains: " + ", ".join(d.get("domain_name","Unknown") for d in domains)
+        if clauses: return "Clauses: " + ", ".join(c.get("clause_name","Unknown") for c in clauses)
+
+    return "No metadata results found."
+
+import re
+
+def is_valid_answer(answer: str) -> bool:
+    if not answer or not answer.strip():
+        return False
+
+    # Whitelisted safe fallback responses
+    safe_fallbacks = [
+        "sorry, i can't answer this query based on the contract or metadata"
+    ]
+    if answer.strip().lower() in safe_fallbacks:
+        return True
+
+    # General error-like patterns
+    error_patterns = [
+        r'(^|\n)\s*error',
+        r'\bsorry[, ]',             
+        r'couldn\'t process',       
+        r'can[\' ]?t answer',       
+        r'not able to',             
+        r'failed to',               
+        r'exception',               
+        r'invalid',                 
+        r'json.*error',             
+    ]
+
+    ans_lower = answer.lower()
+    for pattern in error_patterns:
+        if re.search(pattern, ans_lower, flags=re.IGNORECASE):
+            return False
+
+    return True
+
+
+# Update your chatbot_metadata function to use the enhanced search:
+@app.post("/chatbot-metadata", tags=["Contract Chatbot"])
+async def chatbot_metadata(input_data: ChatbotMetadataInput):
+    try:
+        question = input_data.question
+        model = input_data.model
+
+        # Greeting
+        if is_greeting(question):
+            return {
+                "answer": "Hi, I am Contract Genie. I can help you with information about countries, domains, and clauses in our database. What would you like to know?",
+                "cachekey": "greeting_metadata"
+            }
+
+        # Cache check
+        cache_key = f"metadata_{question}_{model}"
+        #cached = db.contracts_cache.find_one({"_id": cache_key})
+        #if cached and cached.get("feedback", "").lower() != "dislike":
+        #    return {"answer": cached["answer"], "cachekey": "metadata"}
+        cached_response = db.contracts_cache.find_one({"_id": cache_key})
+        if cached_response and cached_response.get("answer"):
+            return {"answer": cached_response["answer"], "cachekey": "metadata"}
+
+        # Detect intent + search
+        intent = detect_intent(question)
+        print(f"Detected intent: {intent}")
+        countries, domains, clauses = search_metadata_entities(question)
+        print(f"Found {countries} countries, {domains} domains, {clauses} clauses")
+
+        # Format response
+        answer = format_metadata_response(question, intent, countries, domains, clauses)
+
+        # Cache
+        if is_valid_answer(answer):
+            db.contracts_cache.update_one(
+                {"_id": cache_key},
+                {"$set": {
+                    "answer": answer,
+                    "model": model,
+                    "question": question,
+                    "feedback": "",
+                    "feedback_given": False
+                }},
+                upsert=True
+            )
+
+        return {"answer": answer, "cachekey": "metadata"}
+
+    except Exception as e:
+        logger.error(f"Metadata chatbot error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Metadata chatbot error: {str(e)}")
+    
+#def is_valid_answer(answer: str) -> bool:
+#    if not answer:
+#        return False
+#    bad_signals = [
+#        "error while processing query",
+#        "i'm getting error",
+#        "Sorry, I couldn't process the contract content.",
+#        "Sorry I can't answer this query",
+#        "llm did not return valid json"
+#    ]
+#    return not any(bad in answer.lower() for bad in bad_signals)
+
+import requests
+#-------------Endpoint for LLM Model----------------
+#def query_endpoint(param_string):
+#    url = "http://172.16.117.136:8000/query"
+#    # Preserve JSON structure, only trim outer whitespace
+#    cleaned_string = param_string.strip() if param_string else ""
+#    payload = {"prompt": cleaned_string}
+#    try:
+#        print("Payload:", payload)
+#        response = requests.post(url, json=payload)
+#        print("Status code:", response.status_code)
+#        print("Raw response:", response.text)
+#        response.raise_for_status()
+#        return response.text
+#    except requests.RequestException as e:
+#        print("Request error:", str(e))
+#        return f"Error: {str(e)}"
+
+#------------- Using Ollama for local LLM ----------------
+import subprocess
+def query_endpoint(param_string: str):
+    cleaned_string = param_string.strip() if param_string else ""
+    try:
+        print("Payload:", cleaned_string)
+        
+        # Call local llama3.1 using Ollama
+        result = subprocess.run(
+            ["ollama", "run", "llama3.1"],
+            input=cleaned_string,   # pass string, not bytes
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode != 0:
+            raise Exception(result.stderr)
+        
+        answer = result.stdout.strip()
+        print("LLM response:", answer)
+        return answer
+
+    except Exception as e:
+        print("LLM error:", str(e))
+        return f"Error: {str(e)}"
+
+from fastapi import Form, File, UploadFile, HTTPException
 @app.post("/chatbot-file", tags=["Contract Chatbot"])
 async def chatbot_file(
     file: UploadFile = File(...),
     question: str = Form(...),
     model: str = Form(...)
-    ):
+):
     try:
-        # Handle greetings first
+        # Step 0: Greetings
         if is_greeting(question):
             return {
-                "answer": "Hi, I am Contract Genie. How can I help you?",
+                "answer": "Hi, I am Contract Genie. I can help you with metadata queries (countries, domains, clauses) or your uploaded contract.",
                 "cachekey": "greeting"
             }
 
-        # Step 1: Read PDF
+        # Step 1: Read file + hash
         file_bytes = await file.read()
         pdf_hash = compute_pdf_hash(file_bytes)
 
-        # Step 2: Check MongoDB cache
+        # Step 2: Cache check
         cache_key = f"{pdf_hash}_{question}_{model}"
         cached_response = db.contracts_cache.find_one({"_id": cache_key})
-        if cached_response and cached_response.get("feedback", "").lower() != "dislike":
-            logger.debug(f"Returning cached response for {cache_key}")
-            return {
-                "answer": cached_response["answer"],
-                "cachekey": pdf_hash
-            }
+        if cached_response and cached_response.get("answer"):
+            return {"answer": cached_response["answer"], "cachekey": pdf_hash}
 
-        # Step 3: Check vector cache and retrieve context
-        if pdf_hash not in vector_store_cache:
-            text = extract_text_from_pdf(file_bytes)
-            if not text.strip():
-                raise HTTPException(status_code=400, detail="No text extracted from PDF")
+        # Step 3: Query type classification
+        #is_contract_q = is_contract_related(question)   # stronger check
+        is_metadata_q = is_metadata_query(question)
+        is_contract_q = is_contract_related(question)
+        answer = ""
+        
+        if is_metadata_q:
+            intent = detect_intent(question)
+            countries, domains, clauses = search_metadata_entities(question)
+            answer = format_metadata_response(question, intent, countries, domains, clauses)
 
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
-            chunks = text_splitter.split_text(text)
+        # --- Contract-related queries ---
+        elif is_contract_q:
+            # Build FAISS index if not cached
+            if pdf_hash not in vector_store_cache:
+                text = extract_text_from_pdf(file_bytes)
+                if text.strip():
+                    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+                    chunks = text_splitter.split_text(text)
+                    vector_store = FAISS.from_texts(chunks, embedding_model)
+                    vector_store_cache[pdf_hash] = vector_store
+            vector_store = vector_store_cache.get(pdf_hash)
 
-            vector_store = FAISS.from_texts(chunks, embedding_model)
-            vector_store_cache[pdf_hash] = vector_store
+            context = ""
+            if vector_store:
+                retriever = vector_store.as_retriever(search_kwargs={"k": 2})
+                docs = retriever.invoke(question)
+                context = "\n\n".join([d.page_content for d in docs])
+
+            if context.strip():
+                prompt = f"""
+                You are an expert contract assistant. Answer the question based ONLY on the provided excerpts.
+
+                Context:
+                {context}
+
+                Question:
+                {question}
+
+                Instructions:
+                - Be concise, plain text.
+                - If not found in the context, reply: "Sorry I can't answer this query, try another query."
+                """
+                try:
+                    raw_response = query_endpoint(prompt)
+                    # If LLM returns plain text, just use it
+                    if isinstance(raw_response, str):
+                        answer = raw_response.strip()
+                    elif isinstance(raw_response, dict) and "response" in raw_response:
+                        answer = raw_response["response"]
+                    else:
+                        answer = str(raw_response)
+                except:
+                    answer = "Sorry, I couldn't process the contract content."
+        #elif is_metadata_q:
+        #    intent = detect_intent(question)
+        #    countries, domains, clauses = search_metadata_entities(question)
+        #    answer = format_metadata_response(question, intent, countries, domains, clauses)
+        
+        # --- Fallback ---
         else:
-            vector_store = vector_store_cache[pdf_hash]
+            answer = "Sorry, I can't answer this query based on the contract or metadata."
 
-        # Step 4: Retrieve relevant chunks
-        retriever = vector_store.as_retriever(search_kwargs={"k": 2})
-        docs = retriever.invoke(question)
-        context = "\n\n".join([d.page_content for d in docs])
-        logger.debug(f"Context: {context}")
-        logger.debug(f"Question: {question}")
+        # Step 4: Cache
+        if is_valid_answer(answer):
+            db.contracts_cache.update_one(
+                {"_id": cache_key},
+                {"$set": {"answer": answer, "model": model, "question": question}},
+                upsert=True
+            )
 
-        # Step 5: Check if question is contract-related
-        if not is_contract_related(question, context):
-            return {
-                "answer": "Can't answer this query.",
-                "cachekey": pdf_hash
-            }
-
-        # Step 6: Build prompt
-        prompt = f"""
-        You are an expert contract assistant. Answer the question based on the provided contract excerpts.
-
-        Context:
-        {context}
-
-        Question:
-        {question}
-
-        Instructions:
-        - Answer in plain text, clear and concise.
-        - Do not include JSON, markdown, or extra explanations.
-        - If no relevant information is found, say "Sorry I can't answer this query, try another query."
-        - Only answer questions related to contracts, legal documents, or the provided document.
-
-        Answer:
-        """
-
-        try:
-            logger.debug("---------------------")
-            raw_response = query_endpoint(prompt)
-            print(raw_response)
-            parsed_once = json.loads(raw_response)
-
-            # If API wraps JSON inside "response"
-            if isinstance(parsed_once, dict) and "response" in parsed_once:
-                parsed_final = parsed_once["response"]  # already plain text
-            else:
-                parsed_final = parsed_once
-
-            logger.debug(f"Parsed response: {parsed_final}")
-
-            if isinstance(parsed_final, dict):
-                if "description" in parsed_final:
-                    answer = parsed_final["description"]
-                elif "analysis" in parsed_final:
-                    # Join reasons as fallback
-                    reasons = [
-                        item.get("reason", "")
-                        for item in parsed_final["analysis"]
-                        if isinstance(item, dict)
-                    ]
-                    answer = " | ".join([r for r in reasons if r]) or "No information found"
-                else:
-                    answer = str(parsed_final)
-            else:
-                answer = str(parsed_final)
-
-        except json.JSONDecodeError as e:
-            raise HTTPException(status_code=500, detail=f"Invalid JSON response from endpoint: {str(e)} | Raw: {raw_response}")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Endpoint Error: {str(e)}")  
-
-        # Step 8: Cache response
-        db.contracts_cache.update_one(
-            {"_id": cache_key},
-            {
-                "$set": {
-                    "answer": answer or "No information found",
-                    "model": model,
-                    "question": question,
-                    "feedback": "",
-                    "feedback_given": False
-                }
-            },
-            upsert=True
-        )
-
-        return {
-            "answer": answer or "No information found",
-            "cachekey": pdf_hash
-        }
+        return {"answer": answer, "cachekey": pdf_hash}
 
     except Exception as e:
         logger.error(f"Chatbot error: {str(e)}", exc_info=True)
