@@ -136,7 +136,7 @@ def build_prompt(summary_context: str, clauses_section: str, model: str) -> str:
           "compliance_area": "<clause_name>",
           "missing_clause": "<Missing / Insufficient / Sufficient>",
           "reason": "<brief reason>",
-          "extracted_text": "<verbatim clause text or null>"
+          "extracted_text": "<first 50 words from the original clause in the contract>"
         }},
         ...
       ]
@@ -647,25 +647,37 @@ def create_clause(clause: Clause):
 @app.get("/clauses", tags=["Clauses"])
 def get_all_clauses():
     pipeline = [
-                    {
-                        "$lookup": {
-                            "from": "domains",
-                            "localField": "domain_id",
-                            "foreignField": "_id",
-                            "as": "domain_info"
-                        }
-                    },
-                    {"$unwind": {"path": "$domain_info", "preserveNullAndEmptyArrays": True}},
-                    {
-                        "$project": {
-                            "_id": 1,
-                            "clause_name": 1,
-                            "clause_text": 1,
-                            "domain_id": 1,
-                            "domain_name": "$domain_info.domain_name"
-                        }
-                    }
+        {
+            "$lookup": {
+                "from": "domains",
+                "localField": "domain_id",
+                "foreignField": "_id",
+                "as": "domain_info"
+            }
+        },
+        {"$unwind": {"path": "$domain_info", "preserveNullAndEmptyArrays": True}},
+        {
+            "$lookup": {
+                "from": "countries",
+                "localField": "domain_info.country_id",
+                "foreignField": "_id",
+                "as": "country_info"
+            }
+        },
+        {"$unwind": {"path": "$country_info", "preserveNullAndEmptyArrays": True}},
+        {
+            "$project": {
+                "_id": 1,
+                "clause_name": 1,
+                "clause_text": 1,
+                "domain_id": 1,
+                "domain_name": "$domain_info.domain_name",
+                "country_id": "$country_info._id",
+                "country_name": "$country_info.country_name"
+            }
+        }
     ]
+
     clauses = list(db.clauses.aggregate(pipeline))
     return clauses
 
