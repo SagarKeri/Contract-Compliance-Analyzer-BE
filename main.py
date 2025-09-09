@@ -33,13 +33,17 @@ app = FastAPI(
     version="1.6.0",
 )
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # or your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],  
 )
+
 
 #---------------load compliances from the mongo DB-----------#
 from typing import List
@@ -50,6 +54,8 @@ from pymongo import MongoClient
 # client = MongoClient("mongodb://localhost:27017/")
 # db = client["Contract-Compliance-Analyzer"]
 clauses_collection = db["clauses"] 
+user_analysis = db["user_analysis"]
+
 
 from pymongo.errors import PyMongoError
 
@@ -241,65 +247,115 @@ client = MongoClient("mongodb://localhost:27017/")
 db = client["Contract-Compliance-Analyzer"]
 contracts_cache = db["contracts_cache"]
 
-def compute_cache_key(file_bytes: bytes, clause_ids: list[int]) -> str:
-    """Generate a unique cache key for a PDF + selected clauses"""
+def compute_cache_key(file_bytes: bytes, clause_ids: list[int], user_id: str) -> str:
     normalized_clauses = sorted(clause_ids)
-
     combined = {
         "pdf_hash": hashlib.sha256(file_bytes).hexdigest(),
-        "clauses": normalized_clauses
+        "clauses": normalized_clauses,
+        "user_id": user_id
     }
-
-    # Hash the combined dict as a JSON string to produce a unique key
     return hashlib.sha256(json.dumps(combined, sort_keys=True).encode()).hexdigest()
+
+from datetime import datetime
+import os
+
+UPLOAD_DIR = Path(__file__).resolve().parent / "uploaded_contracts"
+UPLOAD_DIR.mkdir(exist_ok=True)  # make sure base folder exists
 
 @app.post("/analyze-contract", tags=["Contract Compliance"])
 async def analyze_contract_api(
     file: UploadFile = File(...),
     model: str = Form(...),
-    clauses: str = Form(...)
+    clauses: str = Form(...),
+    user_id: str = Form(...),
+    country_id: str = Form(...),
+    domain_id: str = Form(...)
     ):
+    start_time = datetime.utcnow()
+    analysis_doc_id = None
+
     try:
         clause_ids_list = sorted([int(c.strip()) for c in clauses.strip("[]").split(",") if c.strip()])
         file_bytes = await file.read()
-        pdf_hash = compute_cache_key(file_bytes, clause_ids_list)
 
-        # Check cache
-        cached_doc = contracts_cache.find_one(
-            {"_id": pdf_hash, "clauses": clause_ids_list}
-        )
+        # ✅ Compute cache key first
+        pdf_hash = compute_cache_key(file_bytes, clause_ids_list, user_id)
+
+        # ✅ Save uploaded PDF in folder
+        contract_dir = UPLOAD_DIR / pdf_hash
+        contract_dir.mkdir(parents=True, exist_ok=True)
+
+        pdf_path = contract_dir / file.filename
+        with open(pdf_path, "wb") as f:
+            f.write(file_bytes)
+
+        # ✅ Check cache first (no new log if cached result is valid)
+        cached_doc = contracts_cache.find_one({"_id": pdf_hash, "user_id": user_id})
         if cached_doc and cached_doc.get("feedback", "").lower() != "dislike":
             return {
                 "analysis": cached_doc.get("analysis", []),
-                "cachekey": pdf_hash
+                "cachekey": pdf_hash,
+                "cached": True,
+                "saved_pdf": str(pdf_path)
             }
+
+        # ✅ Insert initial log
+        analysis_doc_id = user_analysis.insert_one({
+            "user_id": user_id,
+            "cached_response_id": pdf_hash,
+            "pdfName": file.filename,
+            "start_time": start_time,
+            "end_time": None,
+            "is_success": False
+        }).inserted_id
 
         # Extract text and analyze
         text = extract_text_from_pdf(file_bytes)
         result = analyze_contract(text, model, clause_ids_list)
 
-        # Save to cache
+        # Save new record
         contracts_cache.update_one(
-            {"_id": pdf_hash, "clauses": clause_ids_list},
+            {"_id": pdf_hash},
             {
                 "$set": {
+                    "user_id": user_id,
+                    "pdf_name": file.filename,
                     "analysis": result,
                     "clauses": clause_ids_list,
                     "feedback": "",
-                    "feedback_given": False
+                    "feedback_given": False,
+                    "uploaded_at": datetime.utcnow().isoformat(),
+                    "country_id": country_id,
+                    "domain_id": domain_id
                 }
             },
             upsert=True
         )
 
+        user_analysis.update_one(
+            {"_id": analysis_doc_id},
+            {"$set": {"end_time": datetime.utcnow(), "is_success": True}}
+        )
+
         return {
             "analysis": result,
-            "cachekey": pdf_hash
+            "cachekey": pdf_hash,
+            "cached": False,
+            "saved_pdf": str(pdf_path)  # ✅ return saved path
         }
 
     except Exception as e:
-        print(f"Error in analyze_contract_api: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error in analyze_contract_api: {str(e)}")
+        if analysis_doc_id:
+            user_analysis.update_one(
+                {"_id": analysis_doc_id},
+                {"$set": {"end_time": datetime.utcnow(), "is_success": False}}
+            )
+
+        return {
+            "error": str(e),
+            "cached": False
+        }
+
 
 # #-----------Compute PDF Hash--------#
 def compute_pdf_hash(file_bytes: bytes) -> str:
@@ -1415,3 +1471,454 @@ def safe_json_loads(raw_result: str) -> dict:
     json_str = match.group(0)
 
     return json.loads(json_str)
+
+
+
+#---------------------Auth------------------------------------------------
+
+from fastapi import Depends, HTTPException, status, FastAPI, File, UploadFile, Form, Query
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from datetime import datetime, timedelta
+from pydantic import BaseModel, EmailStr
+from pymongo.errors import DuplicateKeyError
+from typing import Optional
+
+# JWT Configuration
+SECRET_KEY = "your-secret-key"  # Replace with a strong secret key in production
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# OAuth2 scheme
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+
+# MongoDB collections
+users_collection = db["users"]
+roles_collection = db["roles"]
+
+# Pydantic Models
+class UserCreate(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    password: str
+    role_id: int = 2  # Default to 2 (User)
+
+class UserInDB(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    hashed_password: str
+    role_id: int
+    role_name: str
+
+from pydantic import Field
+
+class UserInfo(BaseModel):
+    id: str = Field(..., alias="_id")
+    first_name: str
+    last_name: str
+    email: str
+    role_id: int
+    role_name: str
+
+    class Config:
+        allow_population_by_field_name = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserInfo
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+    role: Optional[str] = None
+
+# Helper Functions
+def get_role(role_id: int) -> Optional[dict]:
+    """Retrieve a role from MongoDB by role_id."""
+    return roles_collection.find_one({"_id": role_id})
+
+def hash_password(password: str) -> str:
+    """Hash a password using bcrypt."""
+    return pwd_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plain password against a hashed password."""
+    return pwd_context.verify(plain_password, hashed_password)
+
+def create_access_token(data: dict) -> str:
+    """Create a JWT access token."""
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def get_user(email: str) -> Optional[dict]:
+    """Retrieve a user from MongoDB by email."""
+    user = users_collection.find_one({"email": email})
+    if user:
+        role = get_role(user["role_id"])
+        if role:
+            user["role_name"] = role["role_name"]
+        else:
+            user["role_name"] = "Unknown"
+    return user
+
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
+    """Get the current user from the JWT token."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        role: str = payload.get("role")
+        if email is None or role is None:
+            raise credentials_exception
+        token_data = TokenData(email=email, role=role)
+    except JWTError:
+        raise credentials_exception
+    user = get_user(email=token_data.email)
+    if user is None:
+        raise credentials_exception
+    return user
+
+async def get_current_admin(token: str = Depends(oauth2_scheme)) -> dict:
+    """Ensure the current user is an Admin."""
+    user = await get_current_user(token)
+    if user["role_name"] != "Admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized: Admin access required"
+        )
+    return user
+
+# Authentication Endpoints
+@app.post("/signup", tags=["Authentication"])
+async def signup(user: UserCreate):
+    """Register a new user with role_id (1 for Admin, 2 for User, defaults to 2)."""
+    role = get_role(user.role_id)
+    if not role:
+        raise HTTPException(status_code=400, detail="Invalid role_id. Must be 1 (Admin) or 2 (User).")
+    if get_user(user.email):
+        raise HTTPException(status_code=400, detail="Email already registered")
+    hashed_password = hash_password(user.password)
+    user_dict = {
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "email": user.email,
+        "hashed_password": hashed_password,
+        "role_id": user.role_id,
+        "role_name": role["role_name"]
+    }
+    try:
+        users_collection.insert_one(user_dict)
+    except DuplicateKeyError:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    return {"message": "User registered successfully"}
+
+@app.post("/login", response_model=Token, tags=["Authentication"])
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    """Authenticate user and return JWT token."""
+    user = get_user(form_data.username)  # form_data.username is the email
+    if not user or not verify_password(form_data.password, user["hashed_password"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    access_token = create_access_token(
+        data={"sub": user["email"], "role": user["role_name"]}
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "_id": str(user["_id"]),
+            "first_name": user["first_name"],
+            "last_name": user["last_name"],
+            "email": user["email"],
+            "role_id": user["role_id"],
+            "role_name": user["role_name"],
+        }
+    }
+
+
+from bson import ObjectId
+from fastapi import APIRouter, Depends
+
+@app.get("/users", tags=["Authentication"])
+async def get_all_users(current_admin: dict = Depends(get_current_admin)):
+    """
+    Get all registered users.
+    Only accessible by Admin.
+    """
+    users = list(users_collection.find({}, {"hashed_password": 0}))  
+
+    # Convert ObjectId to string
+    for user in users:
+        user["_id"] = str(user["_id"])
+
+    return {"users": users}
+
+from fastapi import FastAPI, Depends, HTTPException
+from bson import ObjectId
+
+@app.delete("/users/{user_id}", tags=["Authentication"])
+async def delete_user(user_id: str, current_admin: dict = Depends(get_current_admin)):
+    """
+    Delete a user by ID.
+    Only accessible by Admin.
+    """
+    # Validate ObjectId
+    if not ObjectId.is_valid(user_id):
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+
+    result = users_collection.delete_one({"_id": ObjectId(user_id)})
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {"message": "User deleted successfully", "user_id": user_id}
+
+
+
+from bson import ObjectId
+
+class UpdateUserRole(BaseModel):
+    user_id: str
+    role_id: int
+
+@app.put("/users/update-role", tags=["Authentication"])
+async def update_user_role(
+    data: UpdateUserRole,
+    current_admin: dict = Depends(get_current_admin)
+    ):
+    """
+    Update a user's role (Admin-only).
+    Requires user_id and new role_id.
+    """
+    # Validate role
+    role = get_role(data.role_id)
+    if not role:
+        raise HTTPException(status_code=400, detail="Invalid role_id. Must be 1 (Admin) or 2 (User).")
+
+    # Convert string user_id to ObjectId
+    try:
+        user_obj_id = ObjectId(data.user_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid user_id format")
+
+    # Find user
+    user = users_collection.find_one({"_id": user_obj_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Update role
+    users_collection.update_one(
+        {"_id": user_obj_id},
+        {"$set": {"role_id": data.role_id, "role_name": role["role_name"]}}
+    )
+
+    return {"message": f"User role updated to {role['role_name']} successfully"}
+
+
+#--------------------User-Analysis------------------------
+@app.get("/users/{user_id}/analysis", tags=["User Analysis"])
+async def get_user_analysis(user_id: str):
+    """
+    Fetch all past analysis records for a given user_id.
+    """
+    try:
+        # Validate ObjectId format (in case user_id is Mongo _id)
+        # but since you are storing user_id as string, we can just use it directly
+        records = list(user_analysis.find({"user_id": user_id}, {"_id": 0}))
+        
+        if not records:
+            return {"message": "No analysis records found for this user", "data": []}
+
+        return {"user_id": user_id, "data": records}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching analysis: {str(e)}")
+
+
+#----------------------------get the contracts_cache--------------------------------------------
+from fastapi import HTTPException
+from bson import ObjectId
+
+# ------------------ Contract Cache ------------------
+@app.get("/contracts-cache/{cache_id}", tags=["Contracts Cache"])
+async def get_contract_cache(cache_id: str):
+    """
+    Fetch a cached contract analysis by its ID.
+    """
+    try:
+        record = contracts_cache.find_one({"_id": cache_id}, {"_id": 0})
+        if not record:
+            raise HTTPException(status_code=404, detail="Contract cache not found")
+
+        return {"cache_id": cache_id, "data": record}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching contract cache: {str(e)}")
+
+#--------------------------------download-contract-------------------------------------
+@app.get("/download-contract/{cache_id}", tags=["Contracts-Cache"])
+async def download_contract(cache_id: str):
+    """
+    Download the first uploaded contract PDF from uploaded_files/{cache_id}.
+    """
+    try:
+        contract_dir = UPLOAD_DIR / cache_id
+        print(f"Looking in: {contract_dir}")  # DEBUG
+
+        if not contract_dir.exists() or not contract_dir.is_dir():
+            raise HTTPException(status_code=404, detail="No folder found for this cache_id")
+
+        # Get list of files in the folder
+        files = list(contract_dir.glob("*"))
+        print(f"Files found: {files}")  # DEBUG
+
+        if not files:
+            raise HTTPException(status_code=404, detail="No files found in this cache_id folder")
+
+        # Pick the first file (could sort if you want deterministic order)
+        pdf_path = files[0]
+        print(f"Returning file: {pdf_path}")  # DEBUG
+        print("--------------------------------------------------->" + os.path.basename(str(pdf_path)))
+
+        return FileResponse(
+            pdf_path,
+            media_type="application/pdf",
+            filename=os.path.basename(str(pdf_path))   # ✅ sends original filename
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()  # show full error in logs
+        raise HTTPException(status_code=500, detail=f"Error fetching PDF: {str(e)}")
+
+
+#----------------------------Excel Report Download-------------------------------------------------------------------
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from pymongo import MongoClient
+from bson import ObjectId
+import pandas as pd
+import io
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import Font, PatternFill, Color
+
+# Assuming `db` is already defined and connected to MongoDB
+contracts_collection = db["contracts_cache"]
+clauses_collection = db["clauses"]
+
+# ------------------ Excel Formatting ------------------
+def format_sheet(writer, sheet_name: str):
+    worksheet = writer.sheets[sheet_name]
+    
+    # Define color styles
+    metadata_fill = PatternFill(start_color="0F6368", end_color="0F6368", fill_type="solid")
+    table_fill = PatternFill(start_color="299E66", end_color="299E66", fill_type="solid")
+    white_font = Font(color="FFFFFF", bold=True)  # White and bold for headers
+    white_font_regular = Font(color="FFFFFF")  # White for regular text
+    
+    # Apply formatting to metadata section (rows 1-3)
+    for row in worksheet[1:3]:  # Rows are 1-based in openpyxl
+        for cell in row:
+            cell.fill = metadata_fill
+            cell.font = white_font_regular
+    
+    # Apply formatting to table header (row 5, since startrow=4 in df_table.to_excel)
+    for cell in worksheet[5]:  # Row 5 is the table header
+        cell.fill = table_fill
+        cell.font = white_font  # Bold white font for headers
+    
+    # Apply formatting to table data (rows 6 and below)
+    for row in worksheet.iter_rows(min_row=6, max_row=worksheet.max_row, min_col=1, max_col=worksheet.max_column):
+        for cell in row:
+            cell.fill = table_fill
+            cell.font = white_font_regular
+    
+    # Adjust column widths based on content
+    for col_idx, col in enumerate(worksheet.columns, 1):
+        max_length = 0
+        column_letter = get_column_letter(col_idx)
+        for cell in col:
+            if cell.value:
+                max_length = max(max_length, len(str(cell.value)))
+        worksheet.column_dimensions[column_letter].width = max_length + 2
+
+# ------------------ Download Excel Endpoint ------------------
+@app.get("/download-excel", tags=["Contracts-Cache"])
+def download_excel_format(_id: str = Query(...)):
+    # Fetch the contract analysis document
+    document = contracts_collection.find_one({"_id": _id}) or contracts_collection.find_one({"_id": ObjectId(_id)})
+    if not document:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    # Contract metadata
+    contract_name = document.get("pdf_name", "Contract.pdf")
+    num_clauses = len(document.get("clauses", []))
+    description = document.get("analysis", {}).get("description", "")
+
+    # Loop over clauses in the contract
+    table_rows = []
+    for clause_id in document.get("clauses", []):
+        # Fetch clause document
+        clause_doc = clauses_collection.find_one({"_id": clause_id}) or clauses_collection.find_one({"_id": ObjectId(clause_id)})
+        clause_name = clause_doc.get("clause_name") if clause_doc else ""
+        clause_text = clause_doc.get("clause_text") if clause_doc else ""
+
+        # Match analysis for this clause (safe dict check)
+        matched_analysis = next(
+            (
+                a for a in document.get("analysis", {}).get("analysis", [])
+                if isinstance(a, dict) and a.get("compliance_area", "").lower() == clause_name.lower()
+            ),
+            {}
+        )
+
+        table_rows.append({
+            "Clause": clause_name,
+            "Clause Text": clause_text,
+            "Status": matched_analysis.get("missing_clause", ""),
+            "Reason": matched_analysis.get("reason", ""),
+            "Extracted Clause": matched_analysis.get("extracted_text", "")
+        })
+
+    # Create DataFrame
+    df_table = pd.DataFrame(table_rows, columns=["Clause", "Clause Text", "Status", "Reason", "Extracted Clause"])
+
+    # Write Excel
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        # Add top metadata manually
+        meta_df = pd.DataFrame({
+            0: ["Contract Name", "No of Clauses", "Description"],
+            1: [contract_name, num_clauses, description]
+        })
+        meta_df.to_excel(writer, index=False, header=False, startrow=0)
+        # Add table starting from row 4
+        df_table.to_excel(writer, index=False, startrow=4)
+        format_sheet(writer, "Sheet1")
+
+    output.seek(0)
+    filename = f"{contract_name}_report.xlsx"
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
