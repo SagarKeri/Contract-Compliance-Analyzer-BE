@@ -1421,7 +1421,7 @@ import json
 from fastapi import HTTPException
 
 def query_endpoint(param_string):
-    url = "http://172.16.117.136:8000/query"
+    url = "http://172.16.117.136:8001/query"
     # Preserve JSON structure, only trim outer whitespace
     cleaned_string = param_string.strip() if param_string else ""
     payload = {"prompt": cleaned_string}

@@ -1,29 +1,16 @@
-# Web framework for building the API
-fastapi==0.115.0
-
-# ASGI server to run FastAPI
-uvicorn==0.30.6
-
-# For handling file uploads in FastAPI
-python-multipart==0.0.9
-
-# PDF processing library
-PyMuPDF==1.24.10
-
-# LangChain community package for Ollama LLM
-langchain-community==0.3.0
-
-# Google Gemini API client
-google-generativeai==0.8.2
-
-# Data validation and settings management
-pydantic==2.9.2
-
-# --------- ✅ Add these for RAG --------- #
-
-langchain==0.3.0
-langchain-community==0.3.0
-langchain-huggingface==0.1.0
-faiss-cpu==1.9.0.post1
-sentence-transformers>=2.6.1
-
+fastapi==0.103.0
+uvicorn[standard]==0.24.0
+pymongo==4.6.0
+PyMuPDF==1.23.0
+langchain==0.0.300
+langchain-community==0.0.300
+langchain-huggingface==0.0.3
+faiss-cpu==1.7.4
+google-generativeai==0.3.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+pandas==2.0.3
+openpyxl==3.1.2
+requests==2.31.0
+ollama==0.1.0
+sentence-transformers==2.2.2
